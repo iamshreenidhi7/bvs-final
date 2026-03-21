@@ -1,4 +1,4 @@
-﻿module.exports = {
+module.exports = {
   webpack: {
     configure: (webpackConfig) => {
       webpackConfig.resolve.fallback = {
