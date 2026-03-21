@@ -5,7 +5,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 
-const MODELS_URL = '/models';
+const MODELS_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
 
 export function useFaceDetection() {
   const videoRef = useRef(null);
