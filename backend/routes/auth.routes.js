@@ -45,12 +45,12 @@ router.post('/register', async (req, res, next) => {
     }
 
     const [voter] = await db('voters').insert({
-      national_id:   nationalId,
-      full_name:     fullName,
-      date_of_birth: dateOfBirth,
-      constituency,
-      email,
-    }).returning(['id', 'full_name', 'national_id']);
+  national_id:   nationalId,
+  full_name:     fullName,
+  date_of_birth: dateOfBirth,
+  constituency,
+  email: email && email.trim() !== '' ? email.trim() : null,
+}).returning(['id', 'full_name', 'national_id']);
 
     // Audit
     await db('audit_log').insert({
