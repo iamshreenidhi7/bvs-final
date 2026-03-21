@@ -79,12 +79,9 @@ CREATE TABLE votes (
   candidate_id  UUID NOT NULL REFERENCES candidates(id),
   vote_hash     TEXT UNIQUE NOT NULL,    -- Blind signature hash (receipt)
   vote_salt     TEXT NOT NULL,           -- Random salt used in hash
-  cast_at       TIMESTAMP DEFAULT NOW(),
-  -- No voter_id here â€” votes are anonymous
-  CONSTRAINT valid_candidate CHECK (
-    candidate_id IN (SELECT id FROM candidates WHERE election_id = votes.election_id)
-  )
-);
+  cast_at       TIMESTAMP DEFAULT NOW()
+  -- No voter_id here Ã¢â‚¬â€ votes are anonymous
+ );
 
 CREATE INDEX idx_votes_election ON votes(election_id);
 CREATE INDEX idx_votes_candidate ON votes(candidate_id);
@@ -144,7 +141,7 @@ CREATE TABLE admins (
 -- HELPER VIEWS
 -- ============================================================
 
--- Live vote tally (safe to expose â€” no voter info)
+-- Live vote tally (safe to expose Ã¢â‚¬â€ no voter info)
 CREATE VIEW election_results AS
 SELECT
   e.id AS election_id,
@@ -196,7 +193,7 @@ VALUES (
 );
 
 INSERT INTO candidates (election_id, name, party, symbol, ballot_order) VALUES
-  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Arjun Sharma',   'Progressive Alliance',  'ðŸŒŸ', 1),
-  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Priya Nair',     'Democratic Front',      'ðŸŒ¿', 2),
-  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Rahul Mehta',    'National Unity Party',  'ðŸ¦', 3),
-  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Kavita Reddy',   'Citizens Coalition',    'âš¡', 4);
+  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Arjun Sharma',   'Progressive Alliance',  'Ã°Å¸Å’Å¸', 1),
+  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Priya Nair',     'Democratic Front',      'Ã°Å¸Å’Â¿', 2),
+  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Rahul Mehta',    'National Unity Party',  'Ã°Å¸Â¦Â', 3),
+  ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Kavita Reddy',   'Citizens Coalition',    'Ã¢Å¡Â¡', 4);
