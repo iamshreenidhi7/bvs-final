@@ -1,0 +1,45 @@
+# ============================================================
+# .gitignore — Biometric Voting System
+# ============================================================
+
+# Environment variables — NEVER commit
+.env
+.env.local
+.env.production
+backend/.env
+backend/.env.new
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build outputs
+frontend/build/
+dist/
+
+# Logs
+logs/
+*.log
+backend/logs/
+
+# face-api.js model weights (large binary files — download separately)
+frontend/public/models/*.weights
+frontend/public/models/*-shard*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Docker volumes (local dev)
+postgres_data/
+redis_data/
