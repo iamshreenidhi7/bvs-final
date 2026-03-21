@@ -1,1 +1,12 @@
-module.exports={webpack:{configure:(c)=>{c.resolve.fallback={fs:false,path:false,crypto:false};return c;}}}
+﻿module.exports = {
+  webpack: {
+    configure: (webpackConfig) => {
+      webpackConfig.resolve.fallback = {
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+      return webpackConfig;
+    },
+  },
+};
