@@ -33,6 +33,10 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────
 export const authAPI = {
+  markRegistered: (voterId) =>
+    api.post('/auth/mark-registered', { voterId }),
+  loginWithFace: (voterId, faceEmbedding) =>
+    api.post('/auth/login/face', { voterId, faceEmbedding }),
   register: (data) => api.post('/auth/register', data),
   enrollFace: (voterId, faceEmbedding) =>
     api.post('/auth/enroll/face', { voterId, faceEmbedding }),

@@ -1,25 +1,16 @@
-// ============================================================
-// src/pages/Register.jsx
-// Voter registration + biometric enrollment
-// ============================================================
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FaceScanner from '../components/FaceScanner';
-import { useWebAuthn } from '../hooks/useWebAuthn';
 import { authAPI } from '../api';
 
-const STEPS = ['Identity', 'Face Enroll', 'Fingerprint', 'Complete'];
+const STEPS = ['Identity', 'Face Enroll', 'Complete'];
 
 export default function Register() {
   const navigate = useNavigate();
-  const { registerCredential, isLoading: webauthnLoading, isSupported } = useWebAuthn();
-
   const [step, setStep] = useState(0);
   const [voterId, setVoterId] = useState(null);
-  const [faceEmbedding, setFaceEmbedding] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
   const [form, setForm] = useState({
     nationalId: '', fullName: '', dateOfBirth: '', constituency: '', email: '',
   });
@@ -28,7 +19,6 @@ export default function Register() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  // ── Step 0: Register Identity ──────────────────────────
   async function handleIdentitySubmit(e) {
     e.preventDefault();
     setError('');
@@ -44,13 +34,12 @@ export default function Register() {
     }
   }
 
-  // ── Step 1: Face Enrollment ────────────────────────────
   async function handleFaceCaptured(embedding) {
     setError('');
     setLoading(true);
     try {
       await authAPI.enrollFace(voterId, embedding);
-      setFaceEmbedding(embedding);
+      await authAPI.markRegistered(voterId);
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.error || 'Face enrollment failed');
@@ -59,30 +48,14 @@ export default function Register() {
     }
   }
 
-  // ── Step 2: WebAuthn Fingerprint Enrollment ────────────
-  async function handleFingerprintEnroll() {
-    setError('');
-    try {
-      const result = await registerCredential(voterId);
-      if (result.fullyEnrolled) {
-        setStep(3);
-      } else {
-        setError('Enrollment incomplete. Please try again.');
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   return (
     <div className="page">
       <div className="container" style={{ maxWidth: 680 }}>
         <div className="text-center mb-6">
           <h1>Voter Registration</h1>
-          <p className="mt-2">Register once. Vote securely with your biometrics.</p>
+          <p className="mt-2">Register once. Vote securely with face recognition.</p>
         </div>
 
-        {/* Steps indicator */}
         <div className="steps mb-6">
           {STEPS.map((s, i) => (
             <React.Fragment key={s}>
@@ -101,12 +74,10 @@ export default function Register() {
 
         {error && <div className="alert alert-error">{error}</div>}
 
-        {/* ── Step 0: Identity ── */}
         {step === 0 && (
           <div className="card">
             <div className="card-header">
               <h3>Personal Information</h3>
-              <p className="mt-1">Enter your details exactly as they appear on your official ID</p>
             </div>
             <form onSubmit={handleIdentitySubmit}>
               <div className="grid-2">
@@ -133,7 +104,7 @@ export default function Register() {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label className="form-label">Email Address</label>
                   <input className="form-input" type="email" name="email" value={form.email}
-                    onChange={handleChange} placeholder="For notifications (optional)" />
+                    onChange={handleChange} placeholder="Optional" />
                 </div>
               </div>
               <button type="submit" className="btn btn-primary btn-lg btn-full mt-3" disabled={loading}>
@@ -143,66 +114,23 @@ export default function Register() {
           </div>
         )}
 
-        {/* ── Step 1: Face Enrollment ── */}
         {step === 1 && (
           <div className="card">
             <div className="card-header">
               <h3>Face Enrollment</h3>
-              <p className="mt-1">
-                We'll capture your face to verify your identity when voting.
-                Your biometric data is encrypted with AES-256.
-              </p>
+              <p className="mt-1">We will capture your face to verify your identity when voting.</p>
             </div>
             <FaceScanner onCapture={handleFaceCaptured} label="📸 Enroll My Face" />
           </div>
         )}
 
-        {/* ── Step 2: Fingerprint Enrollment ── */}
         {step === 2 && (
-          <div className="card text-center">
-            <div className="card-header">
-              <h3>Fingerprint Enrollment</h3>
-              <p className="mt-1">
-                Register your fingerprint using your device's built-in sensor.
-                This uses the FIDO2/WebAuthn standard.
-              </p>
-            </div>
-
-            <div style={{ padding: '32px 0' }}>
-              <div style={{ fontSize: '5rem', marginBottom: 16 }}>👆</div>
-
-              {!isSupported && (
-                <div className="alert alert-warning">
-                  ⚠️ WebAuthn is not supported on this browser. Please use Chrome, Safari, or Firefox on a device with a fingerprint sensor.
-                </div>
-              )}
-
-              <p className="text-muted mb-6">
-                When you click below, your browser will prompt you to use your fingerprint sensor or device PIN.
-              </p>
-
-              <button
-                className="btn btn-primary btn-lg"
-                onClick={handleFingerprintEnroll}
-                disabled={!isSupported || webauthnLoading}
-              >
-                {webauthnLoading
-                  ? <><span className="spinner" /> Waiting for fingerprint...</>
-                  : '👆 Register Fingerprint'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3: Complete ── */}
-        {step === 3 && (
           <div className="card text-center">
             <div style={{ padding: '40px 0' }}>
               <div style={{ fontSize: '5rem', marginBottom: 16 }}>✅</div>
               <h2>Registration Complete!</h2>
               <p className="mt-3 mb-6">
-                You're now registered to vote. On election day, log in with your National ID
-                and verify your identity with your fingerprint and face.
+                You are now registered. Login with your National ID and face scan to vote.
               </p>
               <div className="flex gap-3" style={{ justifyContent: 'center' }}>
                 <button className="btn btn-gold btn-lg" onClick={() => navigate('/login')}>

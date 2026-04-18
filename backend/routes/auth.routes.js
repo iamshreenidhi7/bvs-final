@@ -352,4 +352,65 @@ async function handleFailedAttempt(voter) {
   await db('voters').where({ id: voter.id }).update(update);
 }
 
+// Mark voter as registered after face enrollment (no WebAuthn needed)
+router.post('/mark-registered', async (req, res, next) => {
+  try {
+    const { voterId } = req.body;
+    if (!voterId) return res.status(400).json({ error: 'voterId required' });
+    const voter = await db('voters').where({ id: voterId }).first();
+    if (!voter) return res.status(404).json({ error: 'Voter not found' });
+    await db('voters').where({ id: voterId }).update({
+      is_registered: true,
+      updated_at: db.fn.now(),
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Login with face only (no fingerprint)
+router.post('/login/face', async (req, res, next) => {
+  try {
+    const { voterId, faceEmbedding } = req.body;
+    if (!voterId || !faceEmbedding) {
+      return res.status(400).json({ error: 'voterId and faceEmbedding required' });
+    }
+    const voter = await db('voters')
+      .where({ id: voterId, is_registered: true, is_active: true })
+      .first();
+    if (!voter) return res.status(404).json({ error: 'Voter not found' });
+    if (!voter.face_embedding) {
+      return res.status(400).json({ error: 'No face enrolled for this voter' });
+    }
+    const faceResult = verifyFaceEmbedding(voter.face_embedding, faceEmbedding);
+    if (!faceResult.match) {
+      await handleFailedAttempt(voter);
+      return res.status(401).json({
+        error: 'Face verification failed. Please try again.',
+        confidence: faceResult.confidence,
+      });
+    }
+    await db('voters').where({ id: voterId }).update({
+      failed_attempts: 0,
+      locked_until: null,
+      last_login: db.fn.now(),
+      updated_at: db.fn.now(),
+    });
+    const token = issueVotingToken(voter);
+    res.json({
+      success: true,
+      token,
+      voter: {
+        id: voter.id,
+        name: voter.full_name,
+        constituency: voter.constituency,
+      },
+      expiresIn: 600,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
