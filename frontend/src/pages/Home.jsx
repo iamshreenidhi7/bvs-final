@@ -55,10 +55,9 @@ export default function Home() {
         <h2 className="text-center mb-6">How It Works</h2>
         <div className="grid-3" style={{ marginBottom: 60 }}>
           {[
-            {[
-              { icon: '👁️', title: 'Face Recognition', desc: 'Our 128-point facial analysis confirms your identity using encrypted biometric templates stored securely.' },
-              { icon: '🔐', title: 'Secure Authentication', desc: 'Your face embedding is encrypted with AES-256 and never shared. Only you can unlock your voting session.' },
-              { icon: '🗳️', title: 'Anonymous Vote', desc: 'Your vote is cryptographically anonymized before storage. Nobody — not even admins — can link your vote to your identity.' },
+            { icon: '👁️', title: 'Face Recognition', desc: 'Our 128-point facial analysis confirms your identity using encrypted biometric templates stored securely.' },
+            { icon: '🔐', title: 'Secure Authentication', desc: 'Your face embedding is encrypted with AES-256 and never shared. Only you can unlock your voting session.' },
+            { icon: '🗳️', title: 'Anonymous Vote', desc: 'Your vote is cryptographically anonymized before storage. Nobody — not even admins — can link your vote to your identity.' },
            ].map((f) => (
             <div key={f.title} className="card text-center">
               <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>{f.icon}</div>
