@@ -55,10 +55,11 @@ export default function Home() {
         <h2 className="text-center mb-6">How It Works</h2>
         <div className="grid-3" style={{ marginBottom: 60 }}>
           {[
-            { icon: '👆', title: 'Fingerprint Scan', desc: 'Your registered fingerprint is verified using FIDO2/WebAuthn — the same standard used by banks worldwide.' },
-            { icon: '👁️', title: 'Face Recognition', desc: 'Our 128-point facial analysis confirms your identity using encrypted biometric templates stored securely.' },
-            { icon: '🗳️', title: 'Anonymous Vote', desc: 'Your vote is cryptographically anonymized before storage. Nobody — not even admins — can link your vote to your identity.' },
-          ].map((f) => (
+            {[
+              { icon: '👁️', title: 'Face Recognition', desc: 'Our 128-point facial analysis confirms your identity using encrypted biometric templates stored securely.' },
+              { icon: '🔐', title: 'Secure Authentication', desc: 'Your face embedding is encrypted with AES-256 and never shared. Only you can unlock your voting session.' },
+              { icon: '🗳️', title: 'Anonymous Vote', desc: 'Your vote is cryptographically anonymized before storage. Nobody — not even admins — can link your vote to your identity.' },
+           ].map((f) => (
             <div key={f.title} className="card text-center">
               <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>{f.icon}</div>
               <h3 style={{ marginBottom: 10 }}>{f.title}</h3>
@@ -99,7 +100,6 @@ export default function Home() {
           <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center', textAlign: 'center' }}>
             {[
               ['🔐', 'AES-256', 'Biometric Encryption'],
-              ['🛡️', 'FIDO2', 'WebAuthn Standard'],
               ['👁️‍🗨️', '128-D', 'Face Vectors'],
               ['📋', 'Auditable', 'Immutable Log'],
               ['🔗', 'SHA-256', 'Vote Receipts'],
