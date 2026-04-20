@@ -3,63 +3,76 @@
 // Admin dashboard
 // ============================================================
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { adminAPI, authAPI } from '../api';
 
 export default function Admin() {
-  const { isAdmin, loginAdmin } = useAuth();
-  const navigate = useNavigate();
-
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('dashboard');
   const [stats, setStats] = useState(null);
   const [voters, setVoters] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Admin login form state
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
-    if (isAdmin) loadDashboard();
-  }, [isAdmin]);
+    const token = localStorage.getItem('admin_token');
+    if (token && token !== 'undefined' && token !== 'null') {
+      setIsAdmin(true);
+      loadDashboard();
+    }
+    setLoading(false);
+  }, []);
 
   async function loadDashboard() {
-    setLoading(true);
     try {
       const res = await adminAPI.dashboard();
       setStats(res.data.stats);
       setRecentActivity(res.data.recentActivity);
     } catch (_) {}
-    finally { setLoading(false); }
   }
 
   async function loadVoters() {
-    const res = await adminAPI.voters();
-    setVoters(res.data.voters || []);
+    try {
+      const res = await adminAPI.voters();
+      setVoters(res.data.voters || []);
+    } catch (_) {}
   }
 
   async function handleAdminLogin(e) {
-  e.preventDefault();
-  setLoginLoading(true);
-  setLoginError('');
-  try {
-    const res = await authAPI.adminLogin(credentials.username, credentials.password);
-    localStorage.setItem('admin_token', res.data.token);
-    loginAdmin(res.data.token);
-    setTimeout(() => {
-      window.location.reload();
-    }, 100);
-  } catch (err) {
-    setLoginError(err.response?.data?.error || 'Login failed');
-  } finally {
-    setLoginLoading(false);
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      const res = await authAPI.adminLogin(credentials.username, credentials.password);
+      const token = res.data.token;
+      localStorage.setItem('admin_token', token);
+      setIsAdmin(true);
+      await loadDashboard();
+    } catch (err) {
+      setLoginError(err.response?.data?.error || 'Login failed');
+    } finally {
+      setLoginLoading(false);
+    }
   }
-}
 
-  // ── Admin Login Screen ─────────────────────────────────
+  function handleLogout() {
+    localStorage.removeItem('admin_token');
+    setIsAdmin(false);
+    setStats(null);
+    setVoters([]);
+    setRecentActivity([]);
+  }
+
+  if (loading) {
+    return (
+      <div className="page flex-center">
+        <span className="spinner spinner-dark" />
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="page">
@@ -93,16 +106,17 @@ export default function Admin() {
     );
   }
 
-  // ── Admin Dashboard ────────────────────────────────────
   return (
     <div className="page">
       <div className="container">
         <div className="flex-between mb-6">
           <h1>Admin Dashboard</h1>
-          <div className="badge badge-gold">⚙️ Election Authority</div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="badge badge-gold">⚙️ Election Authority</div>
+            <button className="btn btn-outline btn-sm" onClick={handleLogout}>Logout</button>
+          </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           {['dashboard', 'voters', 'activity'].map(t => (
             <button key={t}
@@ -113,44 +127,34 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Dashboard tab */}
         {tab === 'dashboard' && (
           <div>
-            {loading ? (
+            {!stats ? (
               <div className="flex-center" style={{ padding: 40 }}>
                 <span className="spinner spinner-dark" />
               </div>
             ) : (
-              <>
-                <div className="grid-3 mb-6">
-                  {stats && [
-                    { icon: '👥', label: 'Registered Voters', value: stats.totalVoters?.toLocaleString() },
-                    { icon: '📋', label: 'Total Elections',   value: stats.totalElections },
-                    { icon: '🗳️', label: 'Votes Cast',        value: stats.totalVotesCast?.toLocaleString() },
-                  ].map(s => (
-                    <div key={s.label} className="card text-center">
-                      <div style={{ fontSize: '2rem', marginBottom: 8 }}>{s.icon}</div>
-                      <div style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--navy)' }}>
-                        {s.value}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                        {s.label}
-                      </div>
+              <div className="grid-3 mb-6">
+                {[
+                  { icon: '👥', label: 'Registered Voters', value: stats.totalVoters?.toLocaleString() },
+                  { icon: '📋', label: 'Total Elections',   value: stats.totalElections },
+                  { icon: '🗳️', label: 'Votes Cast',        value: stats.totalVotesCast?.toLocaleString() },
+                ].map(s => (
+                  <div key={s.label} className="card text-center">
+                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>{s.icon}</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--navy)' }}>
+                      {s.value}
                     </div>
-                  ))}
-                </div>
-
-                {stats?.activeElections > 0 && (
-                  <div className="alert alert-success mb-4">
-                    🟢 <strong>{stats.activeElections}</strong> election(s) currently active
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      {s.label}
+                    </div>
                   </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
         )}
 
-        {/* Voters tab */}
         {tab === 'voters' && (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="table">
@@ -184,17 +188,14 @@ export default function Admin() {
                     </td>
                   </tr>
                 ))}
+                {voters.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No voters found</td></tr>
+                )}
               </tbody>
             </table>
-            {voters.length === 0 && (
-              <div className="text-center" style={{ padding: 40, color: 'var(--text-muted)' }}>
-                No voters found
-              </div>
-            )}
           </div>
         )}
 
-        {/* Activity tab */}
         {tab === 'activity' && (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="table">
@@ -208,15 +209,14 @@ export default function Admin() {
               </thead>
               <tbody>
                 {recentActivity.map((a, i) => {
-                  const meta = a.metadata ? JSON.parse(a.metadata) : {};
+                  let meta = {};
+                  try { meta = a.metadata ? JSON.parse(a.metadata) : {}; } catch (_) {}
                   const eventColor = {
-                    VOTE_CAST: 'badge-success',
-                    LOGIN_SUCCESS: 'badge-info',
-                    FAILED_FINGERPRINT: 'badge-danger',
-                    FAILED_FACE: 'badge-danger',
+                    VOTE_CAST:        'badge-success',
+                    LOGIN_SUCCESS:    'badge-info',
+                    FAILED_FACE:      'badge-danger',
                     VOTER_REGISTERED: 'badge-gold',
                   }[a.event_type] || 'badge-warning';
-
                   return (
                     <tr key={i}>
                       <td><span className={`badge ${eventColor}`}>{a.event_type}</span></td>
@@ -233,6 +233,9 @@ export default function Admin() {
                     </tr>
                   );
                 })}
+                {recentActivity.length === 0 && (
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No activity yet</td></tr>
+                )}
               </tbody>
             </table>
           </div>
