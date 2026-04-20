@@ -6,7 +6,6 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const db = require('../models/db');
 const redis = require('../models/redis');
-const webauthn = require('../auth-service/webauthn');
 const { encryptEmbedding, verifyFaceEmbedding } = require('../auth-service/biometricEncryption');
 const { issueVotingToken, issueAdminToken, revokeToken } = require('../auth-service/jwtService');
 const { authenticate } = require('../middleware/authenticate');
@@ -16,7 +15,7 @@ const router = express.Router();
 
 // Strict rate limiter for auth endpoints
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
+  windowMs: 15 * 60 * 1000,
   max: 10,
   message: { error: 'Too many authentication attempts. Wait 15 minutes.' },
   keyGenerator: (req) => req.body.nationalId || req.ip,
@@ -26,10 +25,6 @@ const authLimiter = rateLimit({
 // VOTER REGISTRATION
 // ============================================================
 
-/**
- * POST /api/auth/register
- * Step 1: Register voter identity (no biometrics yet)
- */
 router.post('/register', async (req, res, next) => {
   try {
     const { nationalId, fullName, dateOfBirth, constituency, email } = req.body;
@@ -38,21 +33,19 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    // Check duplicate
     const existing = await db('voters').where({ national_id: nationalId }).first();
     if (existing) {
       return res.status(409).json({ error: 'National ID already registered' });
     }
 
     const [voter] = await db('voters').insert({
-  national_id:   nationalId,
-  full_name:     fullName,
-  date_of_birth: dateOfBirth,
-  constituency,
-  email: email && email.trim() !== '' ? email.trim() : null,
-}).returning(['id', 'full_name', 'national_id']);
+      national_id:   nationalId,
+      full_name:     fullName,
+      date_of_birth: dateOfBirth,
+      constituency,
+      email: email && email.trim() !== '' ? email.trim() : null,
+    }).returning(['id', 'full_name', 'national_id']);
 
-    // Audit
     await db('audit_log').insert({
       event_type: 'VOTER_REGISTERED',
       voter_id:   voter.id,
@@ -65,7 +58,7 @@ router.post('/register', async (req, res, next) => {
     res.status(201).json({
       success: true,
       voterId: voter.id,
-      message: 'Identity registered. Please complete biometric enrollment.',
+      message: 'Identity registered. Please complete face enrollment.',
     });
   } catch (err) {
     next(err);
@@ -73,13 +66,9 @@ router.post('/register', async (req, res, next) => {
 });
 
 // ============================================================
-// BIOMETRIC ENROLLMENT
+// FACE ENROLLMENT
 // ============================================================
 
-/**
- * POST /api/auth/enroll/face
- * Store encrypted face embedding for a voter
- */
 router.post('/enroll/face', async (req, res, next) => {
   try {
     const { voterId, faceEmbedding } = req.body;
@@ -94,6 +83,7 @@ router.post('/enroll/face', async (req, res, next) => {
 
     const voter = await db('voters').where({ id: voterId }).first();
     if (!voter) return res.status(404).json({ error: 'Voter not found' });
+
     if (voter.face_embedding) {
       return res.status(409).json({ error: 'Face already enrolled' });
     }
@@ -110,63 +100,33 @@ router.post('/enroll/face', async (req, res, next) => {
   }
 });
 
-/**
- * GET /api/auth/enroll/webauthn/options/:voterId
- * Get WebAuthn registration challenge
- */
-router.get('/enroll/webauthn/options/:voterId', async (req, res, next) => {
+// ============================================================
+// MARK REGISTERED (after face enrollment)
+// ============================================================
+
+router.post('/mark-registered', async (req, res, next) => {
   try {
-    const options = await webauthn.getRegistrationOptions(req.params.voterId);
-    res.json(options);
-  } catch (err) {
-    next(err);
-  }
-});
+    const { voterId } = req.body;
+    if (!voterId) return res.status(400).json({ error: 'voterId required' });
 
-/**
- * POST /api/auth/enroll/webauthn/verify
- * Verify WebAuthn registration response and mark voter as fully registered
- */
-router.post('/enroll/webauthn/verify', async (req, res, next) => {
-  try {
-    const { voterId, registrationResponse } = req.body;
-    if (!voterId || !registrationResponse) {
-      return res.status(400).json({ error: 'voterId and registrationResponse required' });
-    }
-
-    await webauthn.verifyAndStoreCredential(voterId, registrationResponse);
-
-    // Check if face is also enrolled
     const voter = await db('voters').where({ id: voterId }).first();
-    const fullyEnrolled = voter.face_embedding !== null;
+    if (!voter) return res.status(404).json({ error: 'Voter not found' });
 
-    if (fullyEnrolled) {
-      await db('voters').where({ id: voterId }).update({
-        is_registered: true,
-        updated_at: db.fn.now(),
-      });
-    }
-
-    res.json({
-      success: true,
-      fullyEnrolled,
-      message: fullyEnrolled
-        ? 'Biometric enrollment complete! You can now vote.'
-        : 'Fingerprint enrolled. Please complete face enrollment.',
+    await db('voters').where({ id: voterId }).update({
+      is_registered: true,
+      updated_at: db.fn.now(),
     });
+
+    res.json({ success: true, message: 'Voter marked as registered' });
   } catch (err) {
     next(err);
   }
 });
 
 // ============================================================
-// AUTHENTICATION (Login to vote)
+// LOGIN — FACE ONLY
 // ============================================================
 
-/**
- * POST /api/auth/login/start
- * Begin dual-biometric authentication
- */
 router.post('/login/start', authLimiter, async (req, res, next) => {
   try {
     const { nationalId } = req.body;
@@ -177,7 +137,6 @@ router.post('/login/start', authLimiter, async (req, res, next) => {
       .first();
 
     if (!voter) {
-      // Deliberate vague error to prevent enumeration
       return res.status(404).json({ error: 'Voter not found' });
     }
 
@@ -185,7 +144,6 @@ router.post('/login/start', authLimiter, async (req, res, next) => {
       return res.status(403).json({ error: 'Biometric enrollment not complete' });
     }
 
-    // Check lockout
     if (voter.locked_until && new Date(voter.locked_until) > new Date()) {
       const minutes = Math.ceil((new Date(voter.locked_until) - new Date()) / 60000);
       return res.status(423).json({
@@ -193,33 +151,23 @@ router.post('/login/start', authLimiter, async (req, res, next) => {
       });
     }
 
-    const webauthnOptions = await webauthn.getAuthenticationOptions(voter.id);
-
-    // Store voter ID temporarily for the session
     await redis.set(`login_session:${voter.id}`, 'pending', 120);
 
     res.json({
       voterId: voter.id,
       voterName: voter.full_name,
-      webauthnOptions,
     });
   } catch (err) {
     next(err);
   }
 });
 
-/**
- * POST /api/auth/login/complete
- * Complete authentication with fingerprint + face
- */
-router.post('/login/complete', authLimiter, async (req, res, next) => {
+router.post('/login/face', authLimiter, async (req, res, next) => {
   try {
-    const { voterId, webauthnResponse, faceEmbedding } = req.body;
+    const { voterId, faceEmbedding } = req.body;
 
-    if (!voterId || !webauthnResponse || !faceEmbedding) {
-      return res.status(400).json({
-        error: 'voterId, webauthnResponse, and faceEmbedding are required',
-      });
+    if (!voterId || !faceEmbedding) {
+      return res.status(400).json({ error: 'voterId and faceEmbedding required' });
     }
 
     const voter = await db('voters')
@@ -228,43 +176,27 @@ router.post('/login/complete', authLimiter, async (req, res, next) => {
 
     if (!voter) return res.status(404).json({ error: 'Voter not found' });
 
-    const ipHash = require('crypto').createHash('sha256').update(req.ip).digest('hex');
-
-    // Step 1: Verify WebAuthn (fingerprint)
-    try {
-      await webauthn.verifyAuthentication(voterId, webauthnResponse);
-    } catch (err) {
-      await handleFailedAttempt(voter);
-      await db('audit_log').insert({
-        event_type: 'FAILED_FINGERPRINT',
-        voter_id: voterId,
-        ip_hash: ipHash,
-        metadata: JSON.stringify({ error: err.message }),
-      });
-      return res.status(401).json({ error: 'Fingerprint verification failed' });
-    }
-
-    // Step 2: Verify face
     if (!voter.face_embedding) {
       return res.status(400).json({ error: 'No face enrolled for this voter' });
     }
 
     const faceResult = verifyFaceEmbedding(voter.face_embedding, faceEmbedding);
+
     if (!faceResult.match) {
       await handleFailedAttempt(voter);
+      const ipHash = require('crypto').createHash('sha256').update(req.ip).digest('hex');
       await db('audit_log').insert({
         event_type: 'FAILED_FACE',
-        voter_id: voterId,
-        ip_hash: ipHash,
-        metadata: JSON.stringify({ distance: faceResult.distance }),
+        voter_id:   voterId,
+        ip_hash:    ipHash,
+        metadata:   JSON.stringify({ distance: faceResult.distance }),
       });
       return res.status(401).json({
-        error: 'Face verification failed',
+        error: 'Face verification failed. Please try again.',
         confidence: faceResult.confidence,
       });
     }
 
-    // Both biometrics passed — reset failure count
     await db('voters').where({ id: voterId }).update({
       failed_attempts: 0,
       locked_until:    null,
@@ -272,8 +204,8 @@ router.post('/login/complete', authLimiter, async (req, res, next) => {
       updated_at:      db.fn.now(),
     });
 
-    // Issue short-lived voting token
     const token = issueVotingToken(voter);
+    const ipHash = require('crypto').createHash('sha256').update(req.ip).digest('hex');
 
     await db('audit_log').insert({
       event_type: 'LOGIN_SUCCESS',
@@ -292,16 +224,17 @@ router.post('/login/complete', authLimiter, async (req, res, next) => {
         name:         voter.full_name,
         constituency: voter.constituency,
       },
-      expiresIn: 600, // 10 minutes
+      expiresIn: 600,
     });
   } catch (err) {
     next(err);
   }
 });
 
-/**
- * POST /api/auth/logout
- */
+// ============================================================
+// LOGOUT
+// ============================================================
+
 router.post('/logout', authenticate, async (req, res, next) => {
   try {
     await revokeToken(req.token);
@@ -314,6 +247,7 @@ router.post('/logout', authenticate, async (req, res, next) => {
 // ============================================================
 // ADMIN LOGIN
 // ============================================================
+
 router.post('/admin/login', async (req, res, next) => {
   try {
     const { username, password } = req.body;
@@ -337,6 +271,7 @@ router.post('/admin/login', async (req, res, next) => {
 // ============================================================
 // HELPERS
 // ============================================================
+
 async function handleFailedAttempt(voter) {
   const maxAttempts = parseInt(process.env.MAX_AUTH_ATTEMPTS) || 5;
   const lockMinutes = parseInt(process.env.LOCKOUT_DURATION_MINUTES) || 30;
@@ -351,66 +286,5 @@ async function handleFailedAttempt(voter) {
 
   await db('voters').where({ id: voter.id }).update(update);
 }
-
-// Mark voter as registered after face enrollment (no WebAuthn needed)
-router.post('/mark-registered', async (req, res, next) => {
-  try {
-    const { voterId } = req.body;
-    if (!voterId) return res.status(400).json({ error: 'voterId required' });
-    const voter = await db('voters').where({ id: voterId }).first();
-    if (!voter) return res.status(404).json({ error: 'Voter not found' });
-    await db('voters').where({ id: voterId }).update({
-      is_registered: true,
-      updated_at: db.fn.now(),
-    });
-    res.json({ success: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Login with face only (no fingerprint)
-router.post('/login/face', async (req, res, next) => {
-  try {
-    const { voterId, faceEmbedding } = req.body;
-    if (!voterId || !faceEmbedding) {
-      return res.status(400).json({ error: 'voterId and faceEmbedding required' });
-    }
-    const voter = await db('voters')
-      .where({ id: voterId, is_registered: true, is_active: true })
-      .first();
-    if (!voter) return res.status(404).json({ error: 'Voter not found' });
-    if (!voter.face_embedding) {
-      return res.status(400).json({ error: 'No face enrolled for this voter' });
-    }
-    const faceResult = verifyFaceEmbedding(voter.face_embedding, faceEmbedding);
-    if (!faceResult.match) {
-      await handleFailedAttempt(voter);
-      return res.status(401).json({
-        error: 'Face verification failed. Please try again.',
-        confidence: faceResult.confidence,
-      });
-    }
-    await db('voters').where({ id: voterId }).update({
-      failed_attempts: 0,
-      locked_until: null,
-      last_login: db.fn.now(),
-      updated_at: db.fn.now(),
-    });
-    const token = issueVotingToken(voter);
-    res.json({
-      success: true,
-      token,
-      voter: {
-        id: voter.id,
-        name: voter.full_name,
-        constituency: voter.constituency,
-      },
-      expiresIn: 600,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
 
 module.exports = router;
