@@ -42,18 +42,22 @@ export default function Admin() {
   }
 
   async function handleAdminLogin(e) {
-    e.preventDefault();
-    setLoginLoading(true);
-    setLoginError('');
-    try {
-      const res = await authAPI.adminLogin(credentials.username, credentials.password);
-      loginAdmin(res.data.token);
-    } catch (err) {
-      setLoginError(err.response?.data?.error || 'Login failed');
-    } finally {
-      setLoginLoading(false);
-    }
+  e.preventDefault();
+  setLoginLoading(true);
+  setLoginError('');
+  try {
+    const res = await authAPI.adminLogin(credentials.username, credentials.password);
+    localStorage.setItem('admin_token', res.data.token);
+    loginAdmin(res.data.token);
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+  } catch (err) {
+    setLoginError(err.response?.data?.error || 'Login failed');
+  } finally {
+    setLoginLoading(false);
   }
+}
 
   // ── Admin Login Screen ─────────────────────────────────
   if (!isAdmin) {

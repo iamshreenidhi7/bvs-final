@@ -18,13 +18,21 @@ export function AuthProvider({ children }) {
     const savedAdmin = localStorage.getItem('admin_token');
 
     if (savedToken && savedVoter) {
-      setToken(savedToken);
-      setVoter(JSON.parse(savedVoter));
+      try {
+        setToken(savedToken);
+        setVoter(JSON.parse(savedVoter));
+      } catch (_) {
+        localStorage.removeItem('voting_token');
+        localStorage.removeItem('voter_info');
+      }
     }
-    if (savedAdmin) setIsAdmin(true);
+
+    if (savedAdmin && savedAdmin !== 'undefined' && savedAdmin !== 'null') {
+      setIsAdmin(true);
+    }
+
     setLoading(false);
 
-    // Handle token expiry
     const onExpired = () => logout();
     window.addEventListener('auth:expired', onExpired);
     return () => window.removeEventListener('auth:expired', onExpired);
