@@ -11,14 +11,12 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach JWT token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('voting_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 globally
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -33,20 +31,33 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────
 export const authAPI = {
-  markRegistered: (voterId) =>
-    api.post('/auth/mark-registered', { voterId }),
-  loginWithFace: (voterId, faceEmbedding) =>
-    api.post('/auth/login/face', { voterId, faceEmbedding }),
+  // Registration
   register: (data) => api.post('/auth/register', data),
+  sendRegisterOTP: (voterId) =>
+    api.post('/auth/register/send-otp', { voterId }),
+  verifyRegisterOTP: (voterId, otp) =>
+    api.post('/auth/register/verify-otp', { voterId, otp }),
   enrollFace: (voterId, faceEmbedding) =>
     api.post('/auth/enroll/face', { voterId, faceEmbedding }),
   getWebAuthnEnrollOptions: (voterId) =>
     api.get(`/auth/enroll/webauthn/options/${voterId}`),
   verifyWebAuthnEnroll: (voterId, registrationResponse) =>
     api.post('/auth/enroll/webauthn/verify', { voterId, registrationResponse }),
-  loginStart: (nationalId) => api.post('/auth/login/start', { nationalId }),
-  loginComplete: (voterId, webauthnResponse, faceEmbedding) =>
-    api.post('/auth/login/complete', { voterId, webauthnResponse, faceEmbedding }),
+  markRegistered: (voterId) =>
+    api.post('/auth/mark-registered', { voterId }),
+
+  // Login
+  loginStart: (nationalId) =>
+    api.post('/auth/login/start', { nationalId }),
+  sendLoginOTP: (voterId) =>
+    api.post('/auth/login/send-otp', { voterId }),
+  verifyLoginOTP: (voterId, otp) =>
+    api.post('/auth/login/verify-otp', { voterId, otp }),
+  loginWithFace: (voterId, faceEmbedding) =>
+    api.post('/auth/login/face', { voterId, faceEmbedding }),
+  loginWithFingerprint: (voterId, webauthnResponse) =>
+    api.post('/auth/login/fingerprint', { voterId, webauthnResponse }),
+
   logout: () => api.post('/auth/logout'),
   adminLogin: (username, password) =>
     api.post('/auth/admin/login', { username, password }),
