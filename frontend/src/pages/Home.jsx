@@ -53,9 +53,11 @@ export default function Home() {
       {/* Security features */}
       <div className="container" style={{ padding: '60px 24px' }}>
         <h2 className="text-center mb-6">How It Works</h2>
-        <div className="grid-3" style={{ marginBottom: 60 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 24, marginBottom: 60 }}>
           {[
             { icon: '👁️', title: 'Face Recognition', desc: 'Our 128-point facial analysis confirms your identity using encrypted biometric templates stored securely.' },
+	    { icon: '👆', title: 'Fingerprint / Touch ID', desc: 'Register your device fingerprint as an alternative login method. Uses the FIDO2/WebAuthn standard — the same technology used by banks worldwide.' },
+	    { icon: '📱', title: 'OTP Verification', desc: 'A one-time password is sent to your registered email and phone number during registration and login for an extra layer of security.' },
             { icon: '🔐', title: 'Secure Authentication', desc: 'Your face embedding is encrypted with AES-256 and never shared. Only you can unlock your voting session.' },
             { icon: '🗳️', title: 'Anonymous Vote', desc: 'Your vote is cryptographically anonymized before storage. Nobody — not even admins — can link your vote to your identity.' },
            ].map((f) => (
@@ -100,6 +102,8 @@ export default function Home() {
             {[
               ['🔐', 'AES-256', 'Biometric Encryption'],
               ['👁️‍🗨️', '128-D', 'Face Vectors'],
+	      ['👆', 'FIDO2', 'Fingerprint'],
+	      ['📱', 'OTP', 'Email + SMS'],
               ['📋', 'Auditable', 'Immutable Log'],
               ['🔗', 'SHA-256', 'Vote Receipts'],
               ['🚫', 'Zero-Link', 'Vote Anonymity'],
