@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 const axios = require('axios');
 const redis = require('../models/redis');
 const { logger } = require('../middleware/logger');
@@ -21,22 +22,41 @@ async function verifyOTP(key, otp) {
   return { valid: true };
 }
 
+async function createGmailTransporter() {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET,
+    'https://developers.google.com/oauthplayground'
+  );
+  oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+  const accessTokenResponse = await oauth2Client.getAccessToken();
+  const accessToken = accessTokenResponse.token;
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: process.env.GMAIL_USER,
+      clientId: process.env.GMAIL_CLIENT_ID,
+      clientSecret: process.env.GMAIL_CLIENT_SECRET,
+      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+      accessToken,
+    },
+  });
+}
+
 async function sendEmailOTP(email, otp) {
   try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS },
-    });
+    const transporter = await createGmailTransporter();
     await transporter.sendMail({
       from: '"VoteSecure" <' + process.env.GMAIL_USER + '>',
       to: email,
       subject: 'Your VoteSecure OTP',
-      html: '<div style="font-family:Arial;max-width:480px;margin:0 auto;padding:32px;background:#f5f0e8;border-radius:12px"><h2 style="color:#0a1628">VoteSecure</h2><p style="color:#6b7280">Your One-Time Password:</p><div style="background:#0a1628;color:#c9a84c;font-size:2.5rem;font-weight:700;letter-spacing:12px;text-align:center;padding:24px;border-radius:8px;margin:24px 0">' + otp + '</div><p style="color:#6b7280;font-size:0.85rem">Expires in 5 minutes. Do not share.</p></div>',
+      html: '<div style="font-family:Arial;max-width:480px;margin:0 auto;padding:32px;background:#f5f0e8;border-radius:12px"><h2 style="color:#0a1628">🗳️ VoteSecure</h2><p style="color:#6b7280">Your One-Time Password:</p><div style="background:#0a1628;color:#c9a84c;font-size:2.5rem;font-weight:700;letter-spacing:12px;text-align:center;padding:24px;border-radius:8px;margin:24px 0">' + otp + '</div><p style="color:#6b7280;font-size:0.85rem">This OTP expires in 5 minutes. Do not share it with anyone.</p></div>',
     });
-    logger.info('Email OTP sent to ' + email);
+    logger.info('Gmail OTP sent to ' + email);
     return { success: true };
   } catch (err) {
-    logger.error('Email OTP error: ' + err.message);
+    logger.error('Gmail OTP error: ' + err.message);
     return { success: false, error: err.message };
   }
 }
@@ -55,6 +75,7 @@ async function sendSMSOTP(phone, otp) {
       logger.info('SMS OTP sent to ' + phone);
       return { success: true };
     }
+    logger.error('Fast2SMS error: ' + JSON.stringify(response.data));
     return { success: false, error: response.data.message };
   } catch (err) {
     logger.error('SMS OTP error: ' + err.message);

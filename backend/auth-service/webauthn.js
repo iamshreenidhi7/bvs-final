@@ -71,7 +71,11 @@ async function verifyAuthentication(voterId, authResponse) {
     requireUserVerification: true,
   });
   if (!verification.verified) throw new Error('Fingerprint verification failed');
-  await db('voters').where({ id: voterId }).update({ sign_count: verification.authenticationInfo.newCounter, last_login: db.fn.now(), updated_at: db.fn.now() });
+  await db('voters').where({ id: voterId }).update({
+    sign_count:  verification.authenticationInfo.newCounter,
+    last_login:  db.fn.now(),
+    updated_at:  db.fn.now(),
+  });
   await redis.del('auth_challenge:' + voterId);
   return true;
 }
