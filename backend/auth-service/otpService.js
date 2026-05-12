@@ -61,16 +61,27 @@ async function sendEmailOTP(email, otp) {
 
 async function sendSMSOTP(phone, otp) {
   try {
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
+      cleanPhone = cleanPhone.substring(2);
+    }
+    if (cleanPhone.length !== 10) {
+      logger.error('Invalid phone number length: ' + cleanPhone);
+      return { success: false, error: 'Invalid phone number' };
+    }
+
     const response = await axios.get('https://www.fast2sms.com/dev/bulkV2', {
       params: {
         authorization: process.env.FAST2SMS_KEY,
-        variables_values: otp,
-        route: 'otp',
-        numbers: phone,
+        message: 'Your VoteSecure OTP is ' + otp + '. Valid for 5 minutes. Do not share.',
+        language: 'english',
+        route: 'q',
+        numbers: cleanPhone,
       },
     });
+
     if (response.data.return === true) {
-      logger.info('SMS OTP sent to ' + phone);
+      logger.info('SMS OTP sent to ' + cleanPhone);
       return { success: true };
     }
     logger.error('Fast2SMS error: ' + JSON.stringify(response.data));
@@ -86,7 +97,10 @@ async function sendOTP(identifier, email, phone) {
   await storeOTP(identifier, otp);
   const results = {};
   if (email) results.email = await sendEmailOTP(email, otp);
-  if (phone) results.sms = await sendSMSOTP(phone, otp);
+  // SMS is optional — only send if FAST2SMS_KEY is configured and active
+  if (phone && process.env.FAST2SMS_ACTIVE === 'true') {
+    results.sms = await sendSMSOTP(phone, otp);
+  }
   return { otp, results };
 }
 
